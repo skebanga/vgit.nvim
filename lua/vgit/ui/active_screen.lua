@@ -1,8 +1,12 @@
 local Git = require('vgit.cli.Git')
 local scene_setting = require('vgit.settings.scene')
 local DiffScreen = require('vgit.features.screens.DiffScreen')
+local DiffHunkScreen = require('vgit.features.screens.DiffHunkScreen')
 local HistoryScreen = require('vgit.features.screens.HistoryScreen')
 local StagedDiffScreen = require('vgit.features.screens.StagedDiffScreen')
+local StagedDiffHunkScreen = require(
+  'vgit.features.screens.StagedDiffHunkScreen'
+)
 local ProjectDiffScreen = require('vgit.features.screens.ProjectDiffScreen')
 local ProjectHunksScreen = require('vgit.features.screens.ProjectHunksScreen')
 local GutterBlameScreen = require('vgit.features.screens.GutterBlameScreen')
@@ -10,7 +14,9 @@ local LineBlameScreen = require('vgit.features.screens.LineBlameScreen')
 
 local current_screen
 local diff_screen
+local diff_hunk_screen
 local staged_diff_screen
+local staged_diff_hunk_screen
 local history_screen
 local project_diff_screen
 local project_hunks_screen
@@ -22,7 +28,19 @@ local active_screen = {}
 -- Factory and dependency injection
 active_screen.inject = function(buffer_hunks, navigation, git_store)
   diff_screen = DiffScreen:new(buffer_hunks, navigation, git_store, Git:new())
+  diff_hunk_screen = DiffHunkScreen:new(
+    buffer_hunks,
+    navigation,
+    git_store,
+    Git:new()
+  )
   staged_diff_screen = StagedDiffScreen:new(
+    buffer_hunks,
+    navigation,
+    git_store,
+    Git:new()
+  )
+  staged_diff_hunk_screen = StagedDiffHunkScreen:new(
     buffer_hunks,
     navigation,
     git_store,
@@ -82,21 +100,14 @@ active_screen.staged_diff_screen = function()
   end
 end
 
-active_screen.hunk_screen = function()
+active_screen.diff_hunk_screen = function()
   if active_screen.exists() then
     return
   end
-  diff_screen.layout_type = scene_setting:get('diff_preference')
-  local success = diff_screen:show('Hunk', {
-    config = {
-      window_props = {
-        relative = 'cursor',
-        height = 20,
-      },
-    },
-  })
+  diff_hunk_screen.layout_type = scene_setting:get('diff_preference')
+  local success = diff_hunk_screen:show('Hunk')
   if success then
-    current_screen = diff_screen
+    current_screen = diff_hunk_screen
   end
 end
 
@@ -104,17 +115,10 @@ active_screen.staged_hunk_screen = function()
   if active_screen.exists() then
     return
   end
-  staged_diff_screen.layout_type = scene_setting:get('diff_preference')
-  local success = staged_diff_screen:show('Staged Hunk', {
-    config = {
-      window_props = {
-        relative = 'cursor',
-        height = 20,
-      },
-    },
-  })
+  staged_diff_hunk_screen.layout_type = scene_setting:get('diff_preference')
+  local success = staged_diff_hunk_screen:show('Staged Hunk')
   if success then
-    current_screen = staged_diff_screen
+    current_screen = staged_diff_hunk_screen
   end
 end
 

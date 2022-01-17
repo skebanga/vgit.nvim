@@ -16,7 +16,7 @@ local highlight = require('vgit.core.highlight')
 local sign = require('vgit.core.sign')
 local Command = require('vgit.Command')
 local Navigation = require('vgit.Navigation')
-local Marker = require('vgit.Marker')
+local NavigationMarker = require('vgit.NavigationMarker')
 local GitStore = require('vgit.GitStore')
 local autocmd = require('vgit.core.autocmd')
 local LiveGutter = require('vgit.features.LiveGutter')
@@ -32,12 +32,17 @@ local versioning = Versioning:new()
 local git = Git:new()
 local command = Command:new()
 local navigation = Navigation:new()
-local marker = Marker:new()
+local navigation_marker = NavigationMarker:new()
 local git_store = GitStore:new()
 local live_gutter = LiveGutter:new(git_store, versioning)
 local live_blame = LiveBlame:new(git_store, versioning)
 local authorship_code_lens = AuthorshipCodeLens:new(git_store, versioning)
-local buffer_hunks = BufferHunks:new(git_store, versioning, navigation, marker)
+local buffer_hunks = BufferHunks:new(
+  git_store,
+  versioning,
+  navigation,
+  navigation_marker
+)
 local project_hunks_list = ProjectHunksList:new(versioning)
 
 active_screen.inject(buffer_hunks, navigation, git_store)
@@ -199,7 +204,7 @@ local buffer_hunk_stage = loop.async(function()
 end)
 
 local buffer_hunk_preview = loop.async(function()
-  active_screen.hunk_screen()
+  active_screen.diff_hunk_screen()
 end)
 
 local buffer_hunk_staged_preview = loop.async(function()

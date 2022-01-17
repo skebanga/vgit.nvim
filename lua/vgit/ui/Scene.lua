@@ -6,7 +6,7 @@ local Scene = Object:extend()
 function Scene:new(components)
   return setmetatable({
     components = components,
-    runtime_cache = {
+    state = {
       default_global_opts = {},
     },
     win_toggle_queue = {},
@@ -70,13 +70,13 @@ end
 
 function Scene:override_defaults()
   -- TODO: Focus scroll on neovim is buggy as it does not respect scrollbind, remove this if resolved in the future.
-  self.runtime_cache.default_global_opts.mouse = vim.o.mouse
+  self.state.default_global_opts.mouse = vim.o.mouse
   vim.o.mouse = ''
 end
 
 function Scene:restore_defaults()
   -- TODO: Focus scroll on neovim is buggy as it does not respect scrollbind, remove this if resolved in the future.
-  vim.o.mouse = self.runtime_cache.default_global_opts.mouse
+  vim.o.mouse = self.state.default_global_opts.mouse
 end
 
 function Scene:mount()

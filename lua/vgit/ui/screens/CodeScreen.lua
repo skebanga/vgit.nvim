@@ -15,7 +15,7 @@ function CodeScreen:new(buffer_hunks, navigation, git_store, git)
     git = git,
     layout_type = 'unified',
     scene = nil,
-    runtime_cache = {
+    state = {
       mark_index = 1,
       current_lines_metadata = {},
       previous_lines_metadata = {},
@@ -33,19 +33,19 @@ function CodeScreen:generate_diff(hunks, lines)
   return diff
 end
 
-function CodeScreen:get_scene_options(...)
-  local scene_options = nil
+function CodeScreen:get_scene_definition()
+  local scene_props = nil
   if self.layout_type == 'unified' then
-    scene_options = self:get_unified_scene_options(...)
+    scene_props = self:get_unified_scene_definition()
   else
-    scene_options = self:get_split_scene_options(...)
+    scene_props = self:get_split_scene_definition()
   end
-  return scene_options
+  return scene_props
 end
 
 function CodeScreen:set_filetype()
   local components = self.scene.components
-  local filetype = self.runtime_cache.data.filetype
+  local filetype = self.state.data.filetype
   if not filetype then
     return self
   end
@@ -77,6 +77,10 @@ end
 
 function CodeScreen:set_title(title, options)
   local components = self.scene.components
+  if components.header then
+    components.header:set_title(title, options)
+    return self
+  end
   if self.layout_type == 'split' then
     components.previous:set_title(title, options)
   else
@@ -87,6 +91,10 @@ end
 
 function CodeScreen:notify(text)
   local components = self.scene.components
+  if components.header then
+    components.header:notify(text)
+    return self
+  end
   if self.layout_type == 'split' then
     components.previous:notify(text)
   else
@@ -96,11 +104,11 @@ function CodeScreen:notify(text)
 end
 
 function CodeScreen:navigate(direction)
-  local data = self.runtime_cache.data
+  local data = self.state.data
   if not data then
     return self
   end
-  if self.runtime_cache.err then
+  if self.state.err then
     return self
   end
   local dto = data.dto
@@ -119,7 +127,7 @@ function CodeScreen:navigate(direction)
   local window = component.window
   local buffer = component.buffer
   if focused_component_name == 'table' then
-    local selected = self.runtime_cache.mark_index
+    local selected = self.state.mark_index
     if direction == 'up' then
       selected = selected - 1
     end
@@ -142,7 +150,7 @@ function CodeScreen:navigate(direction)
     end
   end
   if mark_index then
-    self.runtime_cache.mark_index = mark_index
+    self.state.mark_index = mark_index
     self:notify(
       string.format('%s%s/%s Changes', string.rep(' ', 1), mark_index, #marks)
     )
@@ -169,11 +177,11 @@ function CodeScreen:set_code_cursor_on_mark(selected, position)
   if not position then
     position = 'top'
   end
-  local data = self.runtime_cache.data
+  local data = self.state.data
   if not data then
     return self
   end
-  if self.runtime_cache.err then
+  if self.state.err then
     return self
   end
   local marks = data.dto.marks
@@ -195,7 +203,7 @@ function CodeScreen:set_code_cursor_on_mark(selected, position)
     position
   )
   if mark_index then
-    self.runtime_cache.mark_index = selected
+    self.state.mark_index = selected
     self:notify(
       string.format('%s%s/%s Changes', string.rep(' ', 1), mark_index, #marks)
     )
@@ -210,7 +218,7 @@ end
 
 function CodeScreen:make_lines()
   local components = self.scene.components
-  local dto = self.runtime_cache.data.dto
+  local dto = self.state.data.dto
   if self.layout_type == 'unified' then
     components.current:set_lines(dto.lines)
   else
@@ -221,7 +229,7 @@ function CodeScreen:make_lines()
 end
 
 function CodeScreen:make_line_numbers()
-  local dto = self.runtime_cache.data.dto
+  local dto = self.state.data.dto
   local components = self.scene.components
   local layout_type = self.layout_type or 'unified'
   local line_metadata = {}
@@ -250,7 +258,7 @@ function CodeScreen:make_line_numbers()
         line_number = line,
       }
     end
-    self.runtime_cache.current_lines_metadata = line_metadata
+    self.state.current_lines_metadata = line_metadata
     component:make_line_numbers(lines)
   elseif layout_type == 'split' then
     local previous_component = components.previous
@@ -287,7 +295,7 @@ function CodeScreen:make_line_numbers()
         line_number = line,
       }
     end
-    self.runtime_cache.current_lines_metadata = line_metadata
+    self.state.current_lines_metadata = line_metadata
     current_component:make_line_numbers(lines)
     line_metadata = {}
     lines = {}
@@ -314,7 +322,7 @@ function CodeScreen:make_line_numbers()
         line_number = line,
       }
     end
-    self.runtime_cache.previous_lines_metadata = line_metadata
+    self.state.previous_lines_metadata = line_metadata
     previous_component:make_line_numbers(lines)
   end
   return self
@@ -391,8 +399,8 @@ function CodeScreen:apply_paint_instructions(lnum, metadata, component_type)
 end
 
 function CodeScreen:apply_brush(top, bot)
-  local current_lines_metadata = self.runtime_cache.current_lines_metadata
-  local previous_lines_metadata = self.runtime_cache.previous_lines_metadata
+  local current_lines_metadata = self.state.current_lines_metadata
+  local previous_lines_metadata = self.state.previous_lines_metadata
   for i = top, bot do
     if current_lines_metadata and current_lines_metadata[i] then
       self:apply_paint_instructions(i, current_lines_metadata[i], 'current')
@@ -417,7 +425,7 @@ end
 
 -- Applies brush to the entire document.
 function CodeScreen:paint_code()
-  return self:apply_brush(1, #self.runtime_cache.current_lines_metadata)
+  return self:apply_brush(1, #self.state.current_lines_metadata)
 end
 
 function CodeScreen:show()
@@ -453,24 +461,24 @@ function CodeScreen:clear_namespace()
   return self
 end
 
-function CodeScreen:clear_runtime_cached_err()
-  self.runtime_cache.err = nil
+function CodeScreen:clear_stated_err()
+  self.state.err = nil
   return self
 end
 
-function CodeScreen:clear_runtime_cached_data()
-  self.runtime_cache.data = nil
+function CodeScreen:clear_stated_data()
+  self.state.data = nil
   return self
 end
 
-function CodeScreen:clear_runtime_cache()
-  self.runtime_cache = {}
+function CodeScreen:clear_state()
+  self.state = {}
   return self
 end
 
 function CodeScreen:destroy()
   self:hide()
-  self:clear_runtime_cache()
+  self:clear_state()
   return self
 end
 
@@ -481,11 +489,11 @@ function CodeScreen:keep_focused()
   return self
 end
 
-function CodeScreen:get_unified_scene_options()
+function CodeScreen:get_unified_scene_definition()
   assertion.assert('Not yet implemented', debug.traceback())
 end
 
-function CodeScreen:get_split_scene_options()
+function CodeScreen:get_split_scene_definition()
   assertion.assert('Not yet implemented', debug.traceback())
 end
 

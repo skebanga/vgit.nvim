@@ -1,4 +1,3 @@
-local utils = require('vgit.core.utils')
 local Namespace = require('vgit.core.Namespace')
 local Buffer = require('vgit.core.Buffer')
 local Window = require('vgit.core.Window')
@@ -14,36 +13,6 @@ function HeaderElement:new()
   }, HeaderElement)
 end
 
-function HeaderElement:make_border(c)
-  if c.hl then
-    local new_border = {}
-    for _, char in pairs(c.chars) do
-      if type(char) == 'table' then
-        char[2] = c.hl
-        new_border[#new_border + 1] = char
-      else
-        new_border[#new_border + 1] = { char, c.hl }
-      end
-    end
-    return new_border
-  end
-  return c.chars
-end
-
-local function get_border(options)
-  local type = utils.object.pick({ 'topbottom', 'top', 'bot' }, options.type)
-  if type == 'topbottom' then
-    return { '─', '─', '─', ' ', '─', '─', '─', ' ' }
-  end
-  if type == 'top' then
-    return { '─', '─', '─', ' ', ' ', ' ', ' ', ' ' }
-  end
-  if type == 'bot' then
-    return { ' ', ' ', ' ', ' ', '─', '─', '─', ' ' }
-  end
-  return { ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' }
-end
-
 function HeaderElement:mount(options)
   self.buffer = Buffer:new():create()
   local buffer = self.buffer
@@ -54,16 +23,12 @@ function HeaderElement:mount(options)
   })
   self.window = Window
     :open(buffer, {
-      border = self:make_border({
-        chars = get_border(options),
-        hl = 'GitBorder',
-      }),
       style = 'minimal',
       focusable = false,
       relative = 'editor',
-      row = options.row,
+      row = options.row - HeaderElement:get_height(),
       col = options.col,
-      width = options.width - 2,
+      width = options.width,
       height = 1,
       zindex = 100,
     })
@@ -77,7 +42,7 @@ function HeaderElement:mount(options)
 end
 
 function HeaderElement:get_height()
-  return 3
+  return 1
 end
 
 function HeaderElement:unmount()
@@ -105,7 +70,7 @@ function HeaderElement:clear_namespace()
   return self
 end
 
-function HeaderElement:notify(text)
+function HeaderElement:trigger_notification(text)
   self.namespace:transpose_virtual_text(
     self.buffer,
     text,
@@ -118,7 +83,9 @@ function HeaderElement:notify(text)
 end
 
 function HeaderElement:clear_notification()
-  self.namespace:clear(self.buffer)
+  if self.buffer:is_valid() then
+    self.namespace:clear(self.buffer)
+  end
   return self
 end
 

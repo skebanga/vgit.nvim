@@ -33,9 +33,10 @@ function HorizontalBorderElement:mount(options)
     :assign_options({
       cursorbind = false,
       scrollbind = false,
-      winhl = 'Normal:GitBorder',
+      winhl = 'Normal:GitBackgroundSecondary',
     })
-  self:set_lines({ string.rep('─', options.width) })
+  local border_char = ' '
+  self:set_lines({ string.rep(border_char, options.width) })
   return self
 end
 

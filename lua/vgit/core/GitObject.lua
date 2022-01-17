@@ -62,7 +62,7 @@ end
 function GitObject:stage()
   local filename = self:tracked_filename()
   if not self:is_tracked() then
-    filename = utils.strip_substring(self.filename.native, self.dirname)
+    filename = utils.str.strip(self.filename.native, self.dirname)
   end
   return self.git:stage_file(filename)
 end

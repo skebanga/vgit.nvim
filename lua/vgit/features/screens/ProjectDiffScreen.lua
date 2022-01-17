@@ -1,12 +1,11 @@
 local Window = require('vgit.core.Window')
-local icons = require('vgit.core.icons')
 local utils = require('vgit.core.utils')
 local loop = require('vgit.core.loop')
 local CodeComponent = require('vgit.ui.components.CodeComponent')
-local TableComponent = require('vgit.ui.components.TableComponent')
+local HeaderComponent = require('vgit.ui.components.HeaderComponent')
+local FoldableListComponent = require('vgit.ui.components.FoldedListComponent')
 local CodeDataScreen = require('vgit.ui.screens.CodeDataScreen')
 local Scene = require('vgit.ui.Scene')
-local dimensions = require('vgit.ui.dimensions')
 local console = require('vgit.core.console')
 local fs = require('vgit.core.fs')
 local Diff = require('vgit.Diff')
@@ -19,16 +18,16 @@ end
 
 function ProjectDiffScreen:fetch(selected)
   selected = selected or 1
-  local runtime_cache = self.runtime_cache
+  local state = self.state
   local git = self.git
   local changed_files_err, changed_files = git:ls_changed()
   if changed_files_err then
     console.debug(changed_files_err, debug.traceback())
-    runtime_cache.err = changed_files_err
+    state.err = changed_files_err
     return self
   end
   if #changed_files == 0 then
-    runtime_cache.data = {
+    state.data = {
       changed_files = changed_files,
       selected = selected,
     }
@@ -51,7 +50,7 @@ function ProjectDiffScreen:fetch(selected)
   end
   if lines_err then
     console.debug(lines_err, debug.traceback())
-    runtime_cache.err = lines_err
+    state.err = lines_err
     return self
   end
   local hunks_err, hunks
@@ -64,7 +63,7 @@ function ProjectDiffScreen:fetch(selected)
   end
   if hunks_err then
     console.debug(hunks_err, debug.traceback())
-    runtime_cache.err = hunks_err
+    state.err = hunks_err
     return self
   end
   local dto
@@ -81,7 +80,7 @@ function ProjectDiffScreen:fetch(selected)
       dto = Diff:new(hunks):split(lines)
     end
   end
-  runtime_cache.data = {
+  state.data = {
     filename = filename,
     filetype = fs.detect_filetype(filename),
     changed_files = changed_files,
@@ -91,114 +90,114 @@ function ProjectDiffScreen:fetch(selected)
   return self
 end
 
-function ProjectDiffScreen:get_unified_scene_options(options)
-  local table_height = math.floor(dimensions.global_height() * 0.15)
+function ProjectDiffScreen:get_unified_scene_definition()
   return {
-    current = CodeComponent:new(utils.object.assign({
+    header = HeaderComponent:new({
       config = {
+        win_plot = {
+          width = '100vw',
+        },
+      },
+    }),
+    current = CodeComponent:new({
+      config = {
+        elements = {
+          header = false,
+          horizontal_border = false,
+        },
         win_options = {
           cursorbind = true,
           scrollbind = true,
           cursorline = true,
         },
-        window_props = {
-          height = dimensions.global_height() - table_height,
-          row = table_height,
+        win_plot = {
+          row = HeaderComponent:get_height(),
+          height = '100vh',
+          width = '80vw',
+          col = '20vw',
         },
       },
-    }, options)),
-    table = TableComponent:new(utils.object.assign({
-      header = { 'Filename', 'Status' },
+    }),
+    table = FoldableListComponent:new({
       config = {
-        window_props = {
-          height = table_height,
-          row = 0,
+        elements = {
+          header = false,
+          horizontal_border = false,
+        },
+        win_plot = {
+          row = HeaderComponent:get_height(),
+          height = '100vh',
+          width = '20vw',
         },
       },
-    }, options)),
+    }),
   }
 end
 
-function ProjectDiffScreen:get_split_scene_options(options)
-  local table_height = math.floor(dimensions.global_height() * 0.15)
+function ProjectDiffScreen:get_split_scene_definition(props)
   return {
+    header = HeaderComponent:new(utils.object.assign({
+      config = {
+        win_plot = {
+          width = '100vw',
+        },
+      },
+    }, props)),
     previous = CodeComponent:new(utils.object.assign({
       config = {
+        elements = {
+          header = false,
+          horizontal_border = false,
+        },
         win_options = {
           cursorbind = true,
           scrollbind = true,
           cursorline = true,
         },
-        window_props = {
-          height = dimensions.global_height() - table_height,
-          width = math.floor(dimensions.global_width() / 2),
-          row = table_height,
+        win_plot = {
+          row = HeaderComponent:get_height(),
+          height = '100vh',
+          width = '40vw',
+          col = '20vw',
         },
       },
-    }, options)),
+    }, props)),
     current = CodeComponent:new(utils.object.assign({
       config = {
+        elements = {
+          header = false,
+          horizontal_border = false,
+        },
         win_options = {
           cursorbind = true,
           scrollbind = true,
           cursorline = true,
         },
-        window_props = {
-          height = dimensions.global_height() - table_height,
-          width = math.floor(dimensions.global_width() / 2),
-          col = math.floor(dimensions.global_width() / 2),
-          row = table_height,
+        win_plot = {
+          row = HeaderComponent:get_height(),
+          height = '100vh',
+          width = '40vw',
+          col = '60vw',
         },
       },
-    }, options)),
-    table = TableComponent:new(utils.object.assign({
-      header = { 'Filename', 'Status' },
+    }, props)),
+    table = FoldableListComponent:new(utils.object.assign({
       config = {
-        window_props = {
-          height = table_height,
-          row = 0,
+        elements = {
+          header = false,
+          horizontal_border = false,
+        },
+        win_plot = {
+          row = HeaderComponent:get_height(),
+          height = '100vh',
+          width = '20vw',
         },
       },
-    }, options)),
+    }, props)),
   }
 end
 
-function ProjectDiffScreen:run_command(command)
-  loop.await_fast_event()
-  self:reset()
-  local runtime_cache = self.runtime_cache
-  local components = self.scene.components
-  local table = components.table
-  loop.await_fast_event()
-  local selected = table:get_lnum()
-  local filename = runtime_cache.data.changed_files[selected].filename
-  if type(command) == 'function' then
-    command(filename)
-  end
-  if runtime_cache.err then
-    console.error(runtime_cache.err)
-    return self
-  end
-  self:fetch(selected)
-  loop.await_fast_event()
-  if runtime_cache.err then
-    console.error(runtime_cache.err)
-    return self
-  end
-  if #runtime_cache.data.changed_files == 0 then
-    return self:hide()
-  end
-  self
-    :set_title(runtime_cache.title, {
-      filename = runtime_cache.data.filename,
-      filetype = runtime_cache.data.filetype,
-      stat = runtime_cache.data.dto.stat,
-    })
-    :make_code()
-    :paint_code_partially()
-    :make_table()
-    :set_code_cursor_on_mark(1)
-end
+function ProjectDiffScreen:run_command(command) end
 
 function ProjectDiffScreen:refresh()
   self:run_command()
@@ -223,24 +222,55 @@ function ProjectDiffScreen:git_unstage()
   end)
 end
 
-function ProjectDiffScreen:open_file()
+function ProjectDiffScreen:table_move(direction)
+  self:clear_stated_err()
   local components = self.scene.components
   local table = components.table
   loop.await_fast_event()
   local selected = table:get_lnum()
-  if self.runtime_cache.last_selected == selected then
-    local focused_component_name = self.scene:get_focused_component_name()
-    local runtime_cache = self.runtime_cache
-    local data = runtime_cache.data
+  if direction == 'up' then
+    selected = selected - 1
+  elseif direction == 'down' then
+    selected = selected + 1
+  end
+  loop.await_fast_event()
+  table:unlock():set_lnum(selected):lock()
+  local lnum = table:get_lnum()
+  local item = table:get_list_item(lnum)
+  local state = self.state
+  local last_selected = state.last_selected
+  if item.lnum and last_selected ~= item.lnum then
+    state.last_selected = last_selected
+    self:update(item.lnum)
+  end
+  return self
+end
+
+function ProjectDiffScreen:open_file()
+  local components = self.scene.components
+  local table = components.table
+  loop.await_fast_event()
+  local item = table:get_list_item(table:get_lnum())
+  local selected = item.lnum
+  local focused_component_name = self.scene:get_focused_component_name()
+  local is_in_code_window = focused_component_name == 'current'
+    or focused_component_name == 'previous'
+  if not is_in_code_window then
+    table:toggle_list_item(item)
+    table:render()
+    if not selected then
+      return self
+    end
+  end
+  local state = self.state
+  selected = selected or state.data.selected
+  if selected and state.last_selected == selected then
+    local data = state.data
     local dto = data.dto
     local marks = dto.marks
     local filename = data.changed_files[selected].filename
-    local mark = marks[runtime_cache.mark_index]
-    local lnum
-    if
-      focused_component_name == 'current'
-      or focused_component_name == 'previous'
-    then
+    local mark = marks[state.mark_index]
+    if is_in_code_window then
       local component = components[focused_component_name]
       loop.await_fast_event()
       local current_lnum = component:get_lnum()
@@ -255,7 +285,7 @@ function ProjectDiffScreen:open_file()
         end
       end
     end
-    lnum = mark and mark.top_lnum
+    local lnum = mark and mark.top_lnum
     self:hide()
     vim.cmd(string.format('e %s', filename))
     if lnum then
@@ -263,40 +293,43 @@ function ProjectDiffScreen:open_file()
         vim.cmd('norm! zz')
       end)
     end
-    return self
   end
-  self:update(selected)
+end
+
+function ProjectDiffScreen:define_foldable_list()
+  local foldable_list = {
+    {
+      value = 'Changes',
+      open = true,
+      items = {},
+    },
+  }
+  local changed_files = self.state.data.changed_files
+  local changes_fold = foldable_list[1].items
+  for i = 1, #changed_files do
+    local file = changed_files[i]
+    changes_fold[#changes_fold + 1] = {
+      value = string.format(
+        '%s %s',
+        fs.short_filename(file.filename),
+        file.status:to_string()
+      ),
+      lnum = i,
+    }
+  end
+  return foldable_list
 end
 
 function ProjectDiffScreen:make_table()
   self.scene.components.table
     :unlock()
-    :make_rows(self.runtime_cache.data.changed_files, function(file)
-      local icon, icon_hl = icons.file_icon(file.filename, file.filetype)
-      if icon then
-        return {
-          {
-            icon_before = {
-              icon = icon,
-              hl = icon_hl,
-            },
-            text = file.filename,
-          },
-          file.status:to_string(),
-        }
-      end
-      return {
-        {
-          text = file.filename,
-        },
-        file.status:to_string(),
-      }
-    end)
+    :define(self:define_foldable_list())
     :set_keymap('n', 'j', 'on_j')
     :set_keymap('n', 'J', 'on_j')
     :set_keymap('n', 'k', 'on_k')
     :set_keymap('n', 'K', 'on_k')
     :set_keymap('n', '<enter>', 'on_enter')
+    :render()
     :focus()
     :lock()
   return self
@@ -311,7 +344,7 @@ function ProjectDiffScreen:set_code_keymap(mode, key, action)
   return self
 end
 
-function ProjectDiffScreen:show(title, options)
+function ProjectDiffScreen:show(title, props)
   local is_inside_git_dir = self.git:is_inside_git_dir()
   if not is_inside_git_dir then
     console.log('Project has no git folder')
@@ -321,26 +354,22 @@ function ProjectDiffScreen:show(title, options)
     return false
   end
   self:hide()
-  local runtime_cache = self.runtime_cache
-  runtime_cache.title = title
-  runtime_cache.options = options
+  local state = self.state
+  state.title = title
+  state.props = props
   console.log('Processing project diff')
   self:fetch()
   loop.await_fast_event()
-  if
-    not runtime_cache.err
-    and runtime_cache.data
-    and #runtime_cache.data.changed_files == 0
-  then
+  if not state.err and state.data and #state.data.changed_files == 0 then
     console.log('No changes found')
     return false
   end
-  if runtime_cache.err then
-    console.error(runtime_cache.err)
+  if state.err then
+    console.error(state.err)
     return false
   end
-  self.scene = Scene:new(self:get_scene_options(options)):mount()
-  local data = runtime_cache.data
+  self.scene = Scene:new(self:get_scene_definition(props)):mount()
+  local data = state.data
   local filename = data.filename
   local filetype = data.filetype
   self
@@ -355,7 +384,7 @@ function ProjectDiffScreen:show(title, options)
     :set_code_keymap('n', '<enter>', 'on_enter')
     :paint_code()
   -- Must be after initial fetch
-  runtime_cache.last_selected = 1
+  state.last_selected = 1
   console.clear()
   return true
 end

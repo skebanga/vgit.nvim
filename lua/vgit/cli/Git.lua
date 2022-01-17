@@ -15,7 +15,7 @@ function Git:new(cwd)
     cwd = cwd or '',
     diff_algorithm = 'myers',
     empty_tree_hash = '4b825dc642cb6eb9a060e54bf8d69288fbee4904',
-    runtime_cache = {
+    state = {
       config = nil,
     },
   }, Git)
@@ -61,8 +61,8 @@ Git.is_commit_valid = loop.promisify(function(self, commit, callback)
 end, 3)
 
 Git.config = loop.promisify(function(self, callback)
-  if self.runtime_cache.config then
-    return callback(nil, self.runtime_cache.config)
+  if self.state.config then
+    return callback(nil, self.state.config)
   end
   local err = {}
   local result = {}
@@ -85,7 +85,7 @@ Git.config = loop.promisify(function(self, callback)
       if #err ~= 0 then
         return callback(err, nil)
       end
-      self.runtime_cache.config = result
+      self.state.config = result
       callback(nil, result)
     end,
   })
@@ -178,7 +178,7 @@ Git.blames = loop.promisify(function(self, filename, callback)
 end, 3)
 
 Git.blame_line = loop.promisify(function(self, filename, lnum, callback)
-  filename = utils.strip_substring(filename, self.cwd)
+  filename = utils.str.strip(filename, self.cwd)
   local err = {}
   local result = {}
   local job = Job:new({
@@ -361,20 +361,20 @@ Git.remote_hunks = loop.promisify(
       '--unified=0',
     }
     if parent_hash and commit_hash then
-      utils.list_concat(args, {
+      utils.list.concat(args, {
         #parent_hash > 0 and parent_hash or self.empty_tree_hash,
         commit_hash,
         '--',
         filename,
       })
     elseif parent_hash and not commit_hash then
-      utils.list_concat(args, {
+      utils.list.concat(args, {
         parent_hash,
         '--',
         filename,
       })
     else
-      utils.list_concat(args, {
+      utils.list.concat(args, {
         '--',
         filename,
       })
@@ -679,7 +679,7 @@ Git.stage_hunk_from_patch = loop.promisify(
 )
 
 Git.is_ignored = loop.promisify(function(self, filename, callback)
-  filename = utils.strip_substring(filename, self.cwd)
+  filename = utils.str.strip(filename, self.cwd)
   local err = {}
   local job = Job:new({
     command = 'git',
@@ -783,7 +783,7 @@ Git.current_branch = loop.promisify(function(self, callback)
 end, 2)
 
 Git.tracked_filename = loop.promisify(function(self, filename, callback)
-  filename = utils.strip_substring(filename, self.cwd)
+  filename = utils.str.strip(filename, self.cwd)
   local result = {}
   local job = Job:new({
     command = 'git',
@@ -805,7 +805,7 @@ Git.tracked_filename = loop.promisify(function(self, filename, callback)
 end, 3)
 
 Git.tracked_full_filename = loop.promisify(function(self, filename, callback)
-  filename = utils.strip_substring(filename, self.cwd)
+  filename = utils.str.strip(filename, self.cwd)
   local result = {}
   local job = Job:new({
     command = 'git',

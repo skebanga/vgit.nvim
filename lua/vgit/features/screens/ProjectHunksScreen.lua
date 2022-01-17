@@ -1,12 +1,10 @@
 local icons = require('vgit.core.icons')
 local Window = require('vgit.core.Window')
 local loop = require('vgit.core.loop')
-local utils = require('vgit.core.utils')
 local CodeComponent = require('vgit.ui.components.CodeComponent')
 local TableComponent = require('vgit.ui.components.TableComponent')
 local CodeDataScreen = require('vgit.ui.screens.CodeDataScreen')
 local Scene = require('vgit.ui.Scene')
-local dimensions = require('vgit.ui.dimensions')
 local console = require('vgit.core.console')
 local fs = require('vgit.core.fs')
 local Diff = require('vgit.Diff')
@@ -19,13 +17,13 @@ end
 
 function ProjectHunksScreen:fetch()
   local git = self.git
-  local runtime_cache = self.runtime_cache
-  runtime_cache.entries = {}
-  local entries = runtime_cache.entries
+  local state = self.state
+  state.entries = {}
+  local entries = state.entries
   local changed_files_err, changed_files = git:ls_changed()
   if changed_files_err then
     console.debug(changed_files_err, debug.traceback())
-    runtime_cache.err = changed_files_err
+    state.err = changed_files_err
     return self
   end
   if #changed_files == 0 then
@@ -46,7 +44,7 @@ function ProjectHunksScreen:fetch()
     end
     if lines_err then
       console.debug(lines_err, debug.traceback())
-      runtime_cache.err = lines_err
+      state.err = lines_err
       return self
     end
     local hunks_err, hunks
@@ -59,7 +57,7 @@ function ProjectHunksScreen:fetch()
     end
     if hunks_err then
       console.debug(hunks_err, debug.traceback())
-      runtime_cache.err = hunks_err
+      state.err = hunks_err
       return self
     end
     local dto
@@ -92,91 +90,107 @@ function ProjectHunksScreen:fetch()
       console.debug(hunks_err, debug.traceback())
     end
   end
-  runtime_cache.entries = entries
+  state.entries = entries
   return self
 end
 
-function ProjectHunksScreen:get_unified_scene_options(options)
-  local table_height = math.floor(dimensions.global_height() * 0.15)
+function ProjectHunksScreen:get_unified_scene_definition()
   return {
-    current = CodeComponent:new(utils.object.assign({
+    current = CodeComponent:new({
+      elements = {
+        header = true,
+        horizontal_border = false,
+      },
       config = {
         win_options = {
           cursorbind = true,
           scrollbind = true,
           cursorline = true,
         },
-        window_props = {
-          height = dimensions.global_height() - table_height,
-          row = table_height,
+        win_plot = {
+          height = '85vh',
+          row = '15vh',
         },
       },
-    }, options)),
-    table = TableComponent:new(utils.object.assign({
-      header = { 'Filename', 'Hunk' },
+    }),
+    table = TableComponent:new({
+      elements = {
+        header = true,
+        horizontal_border = false,
+      },
       config = {
-        window_props = {
-          height = table_height,
-          row = 0,
+        header = { 'Filename', 'Hunk' },
+        win_plot = {
+          height = '15vh',
         },
       },
-    }, options)),
+    }),
   }
 end
 
-function ProjectHunksScreen:get_split_scene_options(options)
-  local table_height = math.floor(dimensions.global_height() * 0.15)
+function ProjectHunksScreen:get_split_scene_definition()
   return {
-    previous = CodeComponent:new(utils.object.assign({
+    previous = CodeComponent:new({
       config = {
+        elements = {
+          header = true,
+          horizontal_border = false,
+        },
         win_options = {
           cursorbind = true,
           scrollbind = true,
           cursorline = true,
         },
-        window_props = {
-          height = dimensions.global_height() - table_height,
-          width = math.floor(dimensions.global_width() / 2),
-          row = table_height,
+        win_plot = {
+          height = '85vh',
+          width = '50vw',
+          row = '15vh',
         },
       },
-    }, options)),
-    current = CodeComponent:new(utils.object.assign({
+    }),
+    current = CodeComponent:new({
       config = {
+        elements = {
+          header = true,
+          horizontal_border = false,
+        },
         win_options = {
           cursorbind = true,
           scrollbind = true,
           cursorline = true,
         },
-        window_props = {
-          height = dimensions.global_height() - table_height,
-          width = math.floor(dimensions.global_width() / 2),
-          col = math.floor(dimensions.global_width() / 2),
-          row = table_height,
+        win_plot = {
+          height = '85vh',
+          width = '50vw',
+          col = '50vw',
+          row = '15vh',
         },
       },
-    }, options)),
-    table = TableComponent:new(utils.object.assign({
-      header = { 'Filename', 'Hunk' },
+    }),
+    table = TableComponent:new({
       config = {
-        window_props = {
-          height = table_height,
-          row = 0,
+        elements = {
+          header = true,
+          horizontal_border = false,
+        },
+        header = { 'Filename', 'Hunk' },
+        win_plot = {
+          height = '15vh',
         },
       },
-    }, options)),
+    }),
   }
 end
 
 ProjectHunksScreen.update = loop.brakecheck(loop.async(function(self, selected)
-  local runtime_cache = self.runtime_cache
-  self.runtime_cache.last_selected = selected
-  self.runtime_cache.data = runtime_cache.entries[selected]
-  local data = runtime_cache.data
+  local state = self.state
+  self.state.last_selected = selected
+  self.state.data = state.entries[selected]
+  local data = state.data
   loop.await_fast_event()
   self
     :reset()
-    :set_title(runtime_cache.title, {
+    :set_title(state.title, {
       filename = data.filename,
       filetype = data.filetype,
       stat = data.dto.stat,
@@ -198,8 +212,8 @@ function ProjectHunksScreen:open_file()
   local table = self.scene.components.table
   loop.await_fast_event()
   local selected = table:get_lnum()
-  if self.runtime_cache.last_selected == selected then
-    local data = self.runtime_cache.data
+  if self.state.last_selected == selected then
+    local data = self.state.data
     self:hide()
     vim.cmd(string.format('e %s', data.filename))
     Window:new(0):set_lnum(data.hunks[data.index].top):call(function()
@@ -213,14 +227,14 @@ end
 function ProjectHunksScreen:make_table()
   self.scene.components.table
     :unlock()
-    :make_rows(self.runtime_cache.entries, function(entry)
+    :make_rows(self.state.entries, function(entry)
       local filename = entry.filename
       local filetype = entry.filetype
       local icon, icon_hl = icons.file_icon(filename, filetype)
       if icon then
         return {
           {
-            icon_before = {
+            icon_after = {
               icon = icon,
               hl = icon_hl,
             },
@@ -246,7 +260,7 @@ function ProjectHunksScreen:make_table()
   return self
 end
 
-function ProjectHunksScreen:show(title, options)
+function ProjectHunksScreen:show(title, props)
   local is_inside_git_dir = self.git:is_inside_git_dir()
   if not is_inside_git_dir then
     console.log('Project has no git folder')
@@ -256,38 +270,34 @@ function ProjectHunksScreen:show(title, options)
     return false
   end
   self:hide()
-  local runtime_cache = self.runtime_cache
-  runtime_cache.title = title
-  runtime_cache.options = options
+  local state = self.state
+  state.title = title
+  state.props = props
   console.log('Processing project hunks')
   self:fetch()
   loop.await_fast_event()
-  if
-    not runtime_cache.err
-    and runtime_cache.entries
-    and #runtime_cache.entries == 0
-  then
+  if not state.err and state.entries and #state.entries == 0 then
     console.log('No hunks found')
     return false
   end
-  if runtime_cache.err then
-    console.error(runtime_cache.err)
+  if state.err then
+    console.error(state.err)
     return false
   end
-  self.scene = Scene:new(self:get_scene_options(options)):mount()
-  runtime_cache.data = runtime_cache.entries[1]
+  self.scene = Scene:new(self:get_scene_definition(props)):mount()
+  state.data = state.entries[1]
   self
     :set_title(title, {
-      filename = runtime_cache.data.filename,
-      filetype = runtime_cache.data.filetype,
-      stat = runtime_cache.data.dto.stat,
+      filename = state.data.filename,
+      filetype = state.data.filetype,
+      stat = state.data.dto.stat,
     })
     :make_code()
     :make_table()
     :set_code_cursor_on_mark(1, 'top')
     :paint_code()
   -- Must be after initial fetch
-  runtime_cache.last_selected = 1
+  state.last_selected = 1
   console.clear()
   return true
 end
